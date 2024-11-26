@@ -1,0 +1,19 @@
+function [X, Y] = getTrackingStationPos(omega_e, theta_0, R_e, time_vec)
+% Author: Josef Michelsen
+% Date: 11/26/2024
+
+num_stations = length(theta_0);
+
+X = nan(length(theta_0), length(time_vec));
+Y = nan(length(theta_0), length(time_vec));
+
+for i = 1:length(theta_0)
+    for j = 1:length(time_vec)
+        t = time_vec(j);
+        X(i, j) = R_e * cos(omega_e * t + theta_0(i));
+        Y(i, j) = R_e * sin(omega_e * t + theta_0(i));
+    end
+end
+
+end
+

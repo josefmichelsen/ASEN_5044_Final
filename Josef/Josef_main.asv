@@ -1,0 +1,16 @@
+clear; close all; clc;
+
+data = load("../orbitdeterm_finalproj_KFdata.mat");
+
+% Constants
+mu = 398600; % Standard gravitational parameter [km^3/s^2]
+R_e = 6378; % Radius of the Earth [km]
+omega_e = 2 * pi / 86400; % Turning rate of Earth [rad/s]
+
+% Initial Conditions
+X_0 = 6678; % [km]
+r_0 = x0; % [km]
+Y_0 = 0; % [km]
+X_d_0 = 0; % [km/s]
+Y_d_0 = r0 * sqrt(mu/r0^3); % [km/s]
+
