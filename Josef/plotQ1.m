@@ -2,30 +2,7 @@ function plotQ1(t, x, y)
 % Author: Josef Michelsen
 % Date: 11/30/2024
 
-figure;
-subplot(4,1,1)
-plot(t,x(:, 1))
-xlabel("Time [sec]")
-ylabel("X [km]")
-
-subplot(4,1,2)
-plot(t,x(:, 2))
-xlabel("Time [sec]")
-ylabel("Xdot [km]")
-
-subplot(4,1,3)
-plot(t,x(:, 3))
-xlabel("Time [sec]")
-ylabel("Y [km]")
-
-
-subplot(4,1,4)
-plot(t,x(:, 4))
-xlabel("Time [sec]")
-ylabel("Ydot [km]")
-
-sgtitle("States vs. Time, Full Nonlinear Dynamics Simulation")
-fontsize(16,'points')
+plotStates(t, x)
 
 station = cell(size(y, 1), 1);
 for i = 1:size(y, 1)
