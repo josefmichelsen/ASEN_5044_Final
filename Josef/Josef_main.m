@@ -74,7 +74,8 @@ end
 
 x_combo = x_cont_noPerturb' + x_perturb;
 
-y_linear_disc = getYLinear(x_combo, x_cont_noPerturb ,theta_0, tvec);
+y_linear_disc = getYLinear(x_perturb, x_cont_noPerturb ,theta_0, tvec, y);
+% y_linear_disc = getYLinear(x_combo, x_cont_noPerturb ,theta_0, tvec);
 % y_disc = getY(x_combo(1,:)', x_combo(2,:)', x_combo(3,:)', x_combo(4,:)', theta_0, tvec);
 % plotQ1(t_cont, x_combo, y_disc)
 plotQ1(t_cont, x_combo, y_linear_disc)
