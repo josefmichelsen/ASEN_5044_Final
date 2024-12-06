@@ -29,9 +29,9 @@ theta_0 = (stations - 1) .* pi/6;
 
 perturb_x0 = [0; 0.075; 0; -0.021];
 initial_conditions_cont = initial_conditions + perturb_x0;
-options = odeset('RelTol', 1e-8, 'AbsTol', 1e-8);
+options = odeset('RelTol', 1e-12, 'AbsTol', 1e-12);
 
-[t_cont,x_cont] = ode45(@(t, y)satelliteEOM(t, y, mu), tvec, initial_conditions_cont, options);
+[t_cont,x_cont] = ode45(@(t, y)satelliteEOM(t, y, mu), tvec, initial_conditions, options);
 y = getY(x_cont(:,1), x_cont(:,2), x_cont(:,3), x_cont(:,4), theta_0, tvec);
 % plotQ1(t_cont, x_cont, y)
 
@@ -55,11 +55,15 @@ lx3 = 0; % Y value to linearize around
 %         0, 0, 0, 1;...
 %         df4_dx1, 0, df4_dx3, 0];
 
-A_bar = [0, 1, 0, 0;...
-         -mu/r_0^3, 0, 0, 0;...
-         0, 0, 0, 1;...
-         0, 0, -mu/r_0^3, 0];
+% A_bar = [0, 1, 0, 0;...
+%          -mu/r_0^3, 0, 0, 0;...
+%          0, 0, 0, 1;...
+%          0, 0, -mu/r_0^3, 0];
+temp=((X_0^2)+(Y_0^2))^(5/2);
+A_barf=@(X_0,Y_0) [0 1 0 0;(2*mu*(X_0^2)-mu*(Y_0)^2)/temp 0 (3*mu*X_0*Y_0)/temp 0;0 0 0 1;(3*mu*X_0*Y_0)/temp 0 (2*mu*(Y_0^2)-mu*(X_0)^2)/temp 0];
 
+A_bar= [0 1 0 0;(2*mu*(X_0^2)-mu*(Y_0)^2)/temp 0 (3*mu*X_0*Y_0)/temp 0;0 0 0 1;(3*mu*X_0*Y_0)/temp 0 (2*mu*(Y_0^2)-mu*(X_0)^2)/temp 0];
+Fpert=eye(4)+dt.*A_bar;
 % eig_A = eig(A_bar);  % Eigenvalues of the matrix A
 % disp('Eigenvalues of A:');
 % disp(eig_A);
@@ -83,14 +87,15 @@ x_disc = nan(4, length(tvec));
 x_disc(:,1) = initial_conditions;% + perturb_x0;
 
 for i = 1:length(tvec)-1
-    x_perturb(:,i+1) = F * x_perturb(:, i);
+    Fpert=eye(4)+dt.*A_barf(x_cont(i,1),x_cont(i,3));
+    x_perturb(:,i+1) = Fpert * x_perturb(:, i);
     test(:,i+1) = A_bar * test(:, i);
     x_disc(:,i+1) = F * x_disc(:, i) ;%+ x_perturb(:, i);
     % x_disc(:,i+1) = F * x_disc(:, i) + x_perturb(:, i);
 end
 
 y_disc = getY(x_disc(1,:)', x_disc(2,:)', x_disc(3,:)', x_disc(4,:)', theta_0, tvec);
-plotQ1(tvec, x_disc', y_disc)
+plotQ1(t_cont, x_cont, y)
 
 % figure;
 % subplot(4,1,1)
@@ -106,6 +111,19 @@ plotQ1(tvec, x_disc', y_disc)
 % plot(tvec, x_disc(4,:))
 % 
 % 
+% figure;
+% subplot(4,1,1)
+% plot(tvec, x_cont(:,1)+x_perturb(1,:)')
+% 
+% subplot(4,1,2)
+% plot(tvec, x_cont(:,2)+x_perturb(2,:)')
+% 
+% subplot(4,1,3)
+% plot(tvec, x_cont(:,3)+x_perturb(3,:)')
+% 
+% subplot(4,1,4)
+% plot(tvec, x_cont(:,4)+x_perturb(4,:)')
+
 figure;
 subplot(4,1,1)
 plot(tvec, x_perturb(1,:))
