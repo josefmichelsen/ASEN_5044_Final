@@ -58,16 +58,8 @@ B_bar = [0, 0;...
         0, 0;...
         0, 1];
 
-% A_hat = [A_bar, B_bar; zeros(2,6)];
-% combo = expm(A_hat * dt);
-% F = combo(1:4,1:4);
-% G = combo(1:4,5:6);
-
 x_perturb = nan(4, length(tvec));
 x_perturb(:,1) = perturb_x0;
-
-% test = nan(4, length(tvec));
-% test(:,1) = perturb_x0;
 
 % x_disc = nan(4, length(tvec));
 % x_disc(:,1) = initial_conditions;% + perturb_x0;
@@ -82,8 +74,8 @@ end
 
 x_combo = x_cont_noPerturb' + x_perturb;
 
-y_linear_disc = getYLinear(x_combo, theta_0, tvec);
-y_disc = getY(x_combo(1,:)', x_combo(2,:)', x_combo(3,:)', x_combo(4,:)', theta_0, tvec);
+y_linear_disc = getYLinear(x_combo, x_cont_noPerturb ,theta_0, tvec);
+% y_disc = getY(x_combo(1,:)', x_combo(2,:)', x_combo(3,:)', x_combo(4,:)', theta_0, tvec);
 % plotQ1(t_cont, x_combo, y_disc)
 plotQ1(t_cont, x_combo, y_linear_disc)
 
