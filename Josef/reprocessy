@@ -1,0 +1,21 @@
+function newy = reprocessy(iC)
+[~, n] = size(iC);
+newy = cell(12, n);
+for k = 1:n
+    for j = 1:12
+        newy{j, k} = nan(3, 1); 
+    end 
+        c = iC{k};
+        if ismatrix(c)
+            if size(c,2) == 1
+                row1 = c(4, 1);
+                newy{row1, k} = c(1:3, 1);
+            elseif size(c,2) == 2
+                row1 = c(4, 1);
+                newy{row1, k} = c(1:3, 1);
+                row2 = c(4, 2);
+                newy{row2, k} = c(1:3, 2);
+            end
+        end
+end
+end
