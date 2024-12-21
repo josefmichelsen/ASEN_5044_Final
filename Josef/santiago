@@ -1,7 +1,7 @@
 clear; 
 close all; 
 clc;
-
+rng("default")
 load("orbitdeterm_finalproj_KFdata.mat");
 
 % Constants
@@ -30,7 +30,7 @@ perturb_x0 = [0; 0.075; 0; -0.021];
 initial_conditions_cont = initial_conditions + perturb_x0;
 options = odeset('RelTol', 1e-12, 'AbsTol', 1e-12);
 
-[t_cont, x_cont] = ode45(@(t, y)satelliteEOM(t, y, mu), tvec, initial_conditions_cont, options);
+[t_cont, x_cont] = ode45(@(t, y)satelliteEOM(t, y, mu), tvec, initial_conditions, options);
 y = getY(x_cont(:,1), x_cont(:,2), x_cont(:,3), x_cont(:,4), theta_0, tvec);
 % plotQ1(t_cont, x_cont, y)
 
@@ -79,7 +79,7 @@ y_linear_disc = getYLinear(x_perturb, x_cont_noPerturb ,theta_0, tvec, y);
 % plotQ1(t_cont, x_combo, y_disc)
 rho = @(x, xs, y, ys) sqrt((x - xs)^2 + (y - ys)^2);
 
-plotQ1(t_cont, x_combo, y_linear_disc)
+% plotQ1(t_cont, x_combo, y_linear_disc)
 c = @(x,xs,xd,xds,y,ys,yd,yds) [(x-xs)/rho(x,xs,y,ys), 0, (y-ys)/rho(x,xs,y,ys), 0; ...
     ((xd-xds)*rho(x,xs,y,ys)^2-(x-xs)*((x-xs)*(xd-xds)+(y-ys)*(yd-yds)))/rho(x,xs,y,ys)^3, (x-xs)/rho(x,xs,y,ys), ((yd-yds)*rho(x,xs,y,ys)^2-(y-ys)*((x-xs)*(xd-xds)+(y-ys)*(yd-yds)))/rho(x,xs,y,ys)^3, (y-ys)/rho(x,xs,y,ys);...
     -(y-ys)/rho(x,xs,y,ys)^2, 0, (x-xs)/rho(x,xs,y,ys)^2, 0];
@@ -93,31 +93,29 @@ close all
 
 
 %Extended Kalman Filter NEES/NIS
-Qt=Qtrue;
-Rt=Rtrue;
-Nsimruns = 100;
-NEESsamps = zeros(Nsimruns,length(tvec));
-NISsamps = zeros(Nsimruns,length(tvec));
 
-%xt(:,1)=initial_conditions+mvnrnd([0 0 0 0],[Qt zeros(2,2);zeros(2,2) Qt])';
-xt(:,1)=initial_conditions;
+
+pnoise=mvnrnd([0 0 0 0],chol([Qtrue zeros(2,2);zeros(2,2) Qtrue],"lower"))';
+xt(:,1)=initial_conditions+pnoise;
 ytrue = getY(xt(1,1), xt(2,1), xt(3,1), xt(4,1), theta_0, tvec(1));
 temp=[];
 for s=1:12
     if ~isnan(cell2mat(ytrue(s,1)))
-        temp=[temp;cell2mat(ytrue(s,1))+mvnrnd([0 0 0],Rtrue)';s];
+        temp=[temp [cell2mat(ytrue(s,1));s]];
     end
 yt{1}=temp;
 end    
-for ss=1:1
+for ss=1:60
 for ii=2:length(tvec)
+pnoise=mvnrnd([0 0 0 0],[Qtrue zeros(2,2);zeros(2,2) Qtrue])';
 [t_cont, x_true] = ode45(@(t, y)satelliteEOM(t, y, mu), [tvec(ii-1) tvec(ii)], xt(:,ii-1), options);
-ytrue = getY(x_true(end,1), x_true(end,2), x_true(end,3), x_true(end,4), theta_0, tvec(ii));
-xt(:,ii)=x_true(end,:)';
+xt(:,ii)=x_true(end,:)'+pnoise;
+ytrue = getY(xt(1,ii), xt(2,ii), xt(3,ii), xt(4,ii), theta_0, tvec(ii));
+
 temp=[];
 for s=1:12
     if ~isnan(cell2mat(ytrue(s,1)))
-        temp=[temp;cell2mat(ytrue(s,1))+mvnrnd([0 0 0],Rtrue)';s];
+        temp=[temp [cell2mat(ytrue(s,1));s]];
     end
     try
         yt{ii}=temp;
@@ -127,7 +125,7 @@ for s=1:12
 end
 temp=[];
 end
-ic=initial_conditions;
+
 % [t_cont, x_cont] = ode45(@(t, y)satelliteEOM(t, y, mu), tvec, initial_conditions_cont, options);
 % y = getY(x_cont(:,1), x_cont(:,2), x_cont(:,3), x_cont(:,4), theta_0, tvec);
 
@@ -135,10 +133,12 @@ ic=initial_conditions;
 %for s=1:100
 [X_s, X_s_d, Y_s, Y_s_d] = getTrackingStationStates(theta_0, tvec);
 
-x_plus(:,1)=ic;
-P_plus{1}=500*eye(4);
+
+P_plus{1}=diag([1e3 10 1e3 10]);
+P_plus{1}=diag([5e-5 5e-5 5e-5 5e-5]);
+x_plus(:,1)=initial_conditions+mvnrnd([0 0 0 0],P_plus{1})';
 %Step 2: set k=0
-ydata=processy(yt);
+ydata=yt;
 ex{ss,1}=(x_plus(:,1)-xt(:,1))'*(P_plus{1}^-1)*(x_plus(:,1)-xt(:,1));
 y_minus=getY2(x_plus(1,1), x_plus(2,1),x_plus(3,1), x_plus(4,1), theta_0, tvec(1));
 H=c(x_plus(1,1),X_s(1,1),x_plus(2,1),X_s_d(1,1),x_plus(3,1),Y_s(1,1),x_plus(4,1),Y_s_d(1,1));
@@ -153,7 +153,9 @@ k{1}=0;
 %Step 3: Time update/prediction step for time k+1:
 omega=dt*[0 0;1 0;0 0;0 1];
 
-Qt=[Qtrue(1,1) 0;0 1];
+%Qt=[9e-2 0;0 9.999e-7];
+%nees Qt=[5e-3 0;0 5e-6];
+Qt=[1e-10 0;0 4.85e-11];
 for i=2:length(tvec)
 initial_conditions_cont=x_plus(:,i-1);
 [t_cont, x_con] = ode45(@(t, y)satelliteEOM(t, y, mu),[tvec(i-1),tvec(i)], initial_conditions_cont, options);
@@ -178,23 +180,25 @@ H=[H;c(x_minus(1,i),X_s(station(j),i),x_minus(2,i),X_s_d(station(j),i),x_minus(3
 end
 l=length(station);
 if l==1
-    R=Rt;
+    R=Rtrue;
 elseif l==2
-    R=[Rt zeros(3,3);zeros(3,3) Rt];
+    R=[Rtrue zeros(3,3);zeros(3,3) Rtrue];
 else
-    R=[Rt zeros(3,6);zeros(3,3) Rt zeros(3,3); zeros(3,6) Rt];
+    R=[Rtrue zeros(3,6);zeros(3,3) Rt zeros(3,3); zeros(3,6) Rtrue];
 end
 k{i}=P_minus{i}*H'*((H*P_minus{i}*H'+R)^-1);
-innov=H*P_minus{i}*H'+R;
+innov=H*P_minus{i}*H';
 ey{ss,i}=e'*(innov^-1)*e;
 ny(ss,i)=length(e);
 x_plus(:,i)=x_minus(:,i)+k{i}*e;
 P_plus{i}=(eye(4)-k{i}*H)*P_minus{i};
 else
+ey{ss,i}=ey{ss,i-1};
+ny(ss,i)=ny(ss,i-1);
 x_plus(:,i)=x_minus(:,i);
 P_plus{i}=P_plus{i-1};
 end
-ex{ss,i}=(x_plus(:,i)-xt(:,i))'*(P_plus{i}^-1)*(x_plus(:,i)-xt(:,i));
+ex{ss,i}=(xt(:,i)-x_plus(:,i))'*(P_plus{i}^-1)*(xt(:,i)-x_plus(:,i));
 % figure(1)
 % hold on 
 % plot(x_plus(1,i),x_plus(3,i),'o',"MarkerSize",6)
@@ -204,8 +208,8 @@ end
 meanex=mean(cell2mat(ex),1);
 nx=4.*ones(size(tvec));
 meaney=mean(cell2mat(ey),1);
-ny=mean(ny,1);
-alpha=0.05;
+ny=ceil(mean(ny,1));
+alpha=0.01;
 r1x=chi2inv(alpha/2,ss.*nx)./ss;
 r2x=chi2inv(1-(alpha/2),ss.*nx)./ss;
 r1y=chi2inv(alpha/2,ss.*ny)./ss;
@@ -215,37 +219,49 @@ scatter(tvec, meanex)
 hold on
 plot(tvec,r1x,'r')
 plot(tvec,r2x,'r')
-xlim([0 500])
+ylim([0 10])
+title('NEES Test for 60 Monte Carlo Simulations', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('NEES', 'interpreter', 'latex', 'fontSize', 16);
+
 figure(2)
 scatter(tvec, meaney)
 hold on
 plot(tvec,r1y,'r')
 plot(tvec,r2y,'r')
+ylim([0 10])
+title('NIS Test for 60 Monte Carlo Simulations', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('NIS', 'interpreter', 'latex', 'fontSize', 16);
 
-figure(3)
-plot(x_plus(1,:),x_plus(3,:))
-hold on
-plot(xt(1,:),xt(3,:))
-
+yt=reprocessy(yt);
+plotQ1(tvec,xt,yt)
+% figure(3)
+% plot(x_plus(1,:),x_plus(3,:))
+% hold on
+% %plot(xt(1,:),xt(3,:))
+% x_cont=x_cont';
 
 %%%
+
 %Extended Kalman Filter
 load("orbitdeterm_finalproj_KFdata.mat");
 
 %Step 1: Initialization: start with some initial estimate of total state and covariance
 %for s=1:100
 x_plus(:,1)=initial_conditions;
-P_plus{1}=500*eye(4);
+P_plus{1}=diag([5e3 10 5e3 10]);
+
 %Step 2: set k=0
 
 k{1}=0;
 t(1)=0;
-Qt=[1e-10 0; 0 1];
+Qt=[1e-10 0 0 0;0 4.8e-11 0 0;0 0 1e-10 0; 0 0 0 4.8e-11];
 Rt=Rtrue;
 %Step 3: Time update/prediction step for time k+1:
 omega=dt*[0 0;1 0;0 0;0 1];
 [X_s, X_s_d, Y_s, Y_s_d] = getTrackingStationStates(theta_0, tvec);
-ydata=processy(y);
+
 
 for i=2:1401
 t(i)=t(i-1)+10;
@@ -253,7 +269,7 @@ initial_conditions_cont=x_plus(:,i-1);
 [t_cont, x_con] = ode45(@(t, y)satelliteEOM(t, y, mu),[t(i-1),t(i)], initial_conditions_cont, options);
 x_minus(:,i)=x_con(end,:);
 F = eye(4) + dt .* A_bar_func(x_plus(1,i-1), x_plus(3,i-1));
-P_minus{i}=F*P_plus{i-1}*F'+[Qt zeros(2,2);zeros(2,2) Qt];
+P_minus{i}=F*P_plus{i-1}*F'+Qt;
 y_minus=getY2(x_minus(1,i), x_minus(2,i),x_minus(3,i), x_minus(4,i), theta_0, t(i));
 
 data=cell2mat(ydata(i));
@@ -286,7 +302,91 @@ x_plus(:,i)=x_minus(:,i);
 P_plus{i}=P_plus{i-1};
 end
 end
+e1=[];
+e2=[];
+e3=[];
+e4=[];
+for i=1:length(tvec)
+P=P_plus{i};
+e1(i)=sqrt(P(1,1));
+e2(i)=sqrt(P(2,2));
+e3(i)=sqrt(P(3,3));
+e4(i)=sqrt(P(4,4));
+end    
+figure(6)
+subplot(4,1,1)
+plot(tvec,x_plus(1,:))
+hold on
+plot(tvec,x_plus(1,:)+2.*e1,'r--')
+plot(tvec,x_plus(1,:)-2.*e1,'r--')
+title('X Position vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('X Position[Km]', 'interpreter', 'latex', 'fontSize', 16);
 
+subplot(4,1,2)
+plot(tvec,x_plus(2,:))
+hold on
+plot(tvec,x_plus(2,:)+2.*e2,'r--')
+plot(tvec,x_plus(2,:)-2.*e2,'r--')
+title('X Velocity vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('X Velocity[Km/s]', 'interpreter', 'latex', 'fontSize', 16);
+
+
+subplot(4,1,3)
+plot(tvec,x_plus(3,:))
+hold on
+plot(tvec,x_plus(3,:)+2.*e3,'r--')
+plot(tvec,x_plus(3,:)-2.*e3,'r--')
+title('Y Position vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('Y Position[Km]', 'interpreter', 'latex', 'fontSize', 16);
+
+subplot(4,1,4)
+plot(tvec,x_plus(4,:))
+hold on
+plot(tvec,x_plus(4,:)+2.*e4,'r--')
+plot(tvec,x_plus(4,:)-2.*e4,'r--')
+title('Y Velocity vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('Y Velocity[Km/s]', 'interpreter', 'latex', 'fontSize', 16);
+
+figure(7)
+plot(tvec(1:50),x_plus(1,(1:50)))
+hold on
+plot(tvec(1:50),x_plus(1,(1:50))+2.*e1(1:50),'r--')
+plot(tvec(1:50),x_plus(1,(1:50))-2.*e1(1:50),'r--')
+title('X Position vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('X Position[Km]', 'interpreter', 'latex', 'fontSize', 16);
+
+figure(8)
+plot(tvec(1:50),x_plus(2,(1:50)))
+hold on
+plot(tvec(1:50),x_plus(2,(1:50))+2.*e2(1:50),'r--')
+plot(tvec(1:50),x_plus(2,(1:50))-2.*e2(1:50),'r--')
+title('X Velocity vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('X Velocity[Km/s]', 'interpreter', 'latex', 'fontSize', 16);
+
+
+figure(9)
+plot(tvec(1:50),x_plus(3,(1:50)))
+hold on
+plot(tvec(1:50),x_plus(3,(1:50))+2.*e3(1:50),'r--')
+plot(tvec(1:50),x_plus(3,(1:50))-2.*e3(1:50),'r--')
+title('Y Position vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('Y Position[Km]', 'interpreter', 'latex', 'fontSize', 16);
+
+figure(10)
+plot(tvec(1:50),x_plus(4,(1:50)))
+hold on
+plot(tvec(1:50),x_plus(4,(1:50))+2.*e4(1:50),'r--')
+plot(tvec(1:50),x_plus(4,(1:50))-2.*e4(1:50),'r--')
+title('Y Velocity vs Time', 'interpreter', 'latex', 'fontSize', 20);
+xlabel('Time[s]', 'interpreter', 'latex', 'fontSize', 16);
+ylabel('Y Velocity[Km/s]', 'interpreter', 'latex', 'fontSize', 16);
 
 
 
