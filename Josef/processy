@@ -1,21 +1,15 @@
 function result = processy(inputCellMatrix)
-    % Function to process a 12x1401 cell matrix and return non-NaN data 
-    % with their original row indices in a 1x1401 cell array.
-
-    [numRows, numCols] = size(inputCellMatrix);
-    result = cell(1, numCols);
-
-    for col = 1:numCols
-        nonNanData = [];
-        for row = 1:numRows
-            cellValue = inputCellMatrix{row, col};
-            if ~any(isnan(cellValue)) && ~isempty(cellValue) % Check if not NaN or empty
-                % Append the value and the row index
-                nonNanData = [nonNanData, [cellValue; row]];
-            end
-        end
-        % Store the column result as a 4xn matrix
-        result{col} = nonNanData;
-    end
+[numRows, numCols] = size(inputCellMatrix);
+result = cell(1, numCols);
+for col = 1:numCols
+nonNanData = [];
+for row = 1:numRows
+cellValue = inputCellMatrix{row, col};
+if ~any(isnan(cellValue)) && ~isempty(cellValue) % Check if not NaN or empty
+nonNanData = [nonNanData, [cellValue; row]];
+end
+end
+result{col} = nonNanData;
+end
 end
 
